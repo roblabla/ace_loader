@@ -35,7 +35,7 @@ typedef struct
 	uint64_t unk3;
 } thread_context_t;
 
-struct sockaddr_in stdout_server_addr =
+static struct sockaddr_in stdout_server_addr =
 {
 	.sin_family = AF_INET,
 	.sin_port = htons(STDOUT_PORT),
@@ -102,7 +102,7 @@ static int stdout_debug(struct _reent *reent, void *v, const char *ptr, int len)
 	return len;
 }
 
-void locate_threads(void *base, uint64_t size, int simple)
+void locate_threads(void *base, uint64_t size, int simple, uint32_t *main_handle)
 {
 	memory_info_t minfo;
 	uint32_t pinfo;
@@ -118,6 +118,9 @@ void locate_threads(void *base, uint64_t size, int simple)
 				printf("- found thread context 0x%016lX at 0x%016lX\n handle: 0x%08X\n SP base: 0x%016lX\n SP mirror: 0x%016lX\n SP size: 0x%016lX\n ptrs 0x%016lX 0x%016lX 0x%016lX\n name: '%.32s'\n", (uint64_t)tc, (uint64_t)base, tc->handle, (uint64_t)tc->sp_base, (uint64_t)tc->sp_mirror, tc->sp_size, (uint64_t)tc->ptr_1c8, (uint64_t)tc->ptr_10_a, (uint64_t)tc->ptr_10_b, tc->name);
 				if(strcmp(tc->name, "MainThread"))
 				{
+					// Back up the handle, before we destroy it later on.
+					if (main_handle != NULL)
+						*main_handle = tc->handle;
 					uint64_t *ptr = tc->sp_mirror;
 					uint64_t sizE = tc->sp_size;
 					uint64_t *bend = wkBase + WK_SIZE;
@@ -158,7 +161,7 @@ void locate_threads(void *base, uint64_t size, int simple)
 	}
 }
 
-int thread_scan(int simple)
+int thread_scan(int simple, uint32_t *main_handle)
 {
 	void *addr = NULL;
 	memory_info_t minfo;
@@ -174,7 +177,7 @@ int thread_scan(int simple)
 		if(minfo.permission == 3 && minfo.memory_type == 12)
 		{
 			printf("- found TLS block\n");
-			locate_threads(minfo.base_addr, minfo.size, simple);
+			locate_threads(minfo.base_addr, minfo.size, simple, main_handle);
 		}
 
 		addr = minfo.base_addr + minfo.size;
@@ -252,9 +255,10 @@ void hook_func(uint64_t arg0)
 	map_base = (void*)0xffffffffffffffff; 
 
 	// kill all threads
-	thread_scan(0);
+	uint32_t main_handle = 0;
+	thread_scan(0, &main_handle);
 	svcSleepThread(1000*1000*1000);
-	thread_scan(1);
+	thread_scan(1, NULL);
 	svcSleepThread(1000*1000*1000);
 
 	// close some handles
@@ -311,7 +315,7 @@ void hook_func(uint64_t arg0)
 
 	// start 'push' server
 	if(!server_init())
-		server_loop();
+		server_loop(main_handle);
 
 crash:
 	exit_loader();

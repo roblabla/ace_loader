@@ -24,9 +24,9 @@ static char nro_args[NRO_MAX_ARG_BUF];
 static int nro_argc;
 static char *nro_argoffs;
 
-uint64_t nro_start()
+uint64_t nro_start(uint32_t main_handle)
 {
-	uint64_t (*entry)(libtransistor_context_t*) = nro_base + 0x80;
+	uint64_t (*entry)(void*, uint32_t, libtransistor_context_t*) = nro_base + 0x80;
 	uint64_t ret;
 
 	// generate memory block
@@ -69,7 +69,7 @@ uint64_t nro_start()
 	*(void**)(get_tls() + 0x1f8) = NULL;
 
 	// run NRO
-	ret = entry(&loader_context);
+	ret = entry(NULL, main_handle, &loader_context);
 
 	// Restore TLS
 	*tls_userspace_pointer = tls_backup;
@@ -194,7 +194,7 @@ result_t nro_unload()
 	return r;
 }
 
-uint64_t nro_execute(void *load_base, int in_size)
+uint64_t nro_execute(void *load_base, int in_size, uint32_t main_handle)
 {
 	uint64_t ret;
 	result_t r;
@@ -203,7 +203,7 @@ uint64_t nro_execute(void *load_base, int in_size)
 	if(r)
 		return r;
 
-	ret = nro_start();
+	ret = nro_start(main_handle);
 
 	nro_unload(); // unload can fail; for now not a critical error
 

@@ -95,7 +95,7 @@ int server_init()
 	return 0;
 }
 
-void server_loop()
+void server_loop(uint32_t main_handle)
 {
 	struct sockaddr_in client_addr;
 	int ret;
@@ -141,7 +141,7 @@ void server_loop()
 				if(size != heap_size && size != 0xFFFFFFFF)
 				{
 					nro_arg_name("NRO");
-					size = nro_execute(heap_base, (int)(ptr - heap_base));
+					size = nro_execute(heap_base, (int)(ptr - heap_base), main_handle);
 					printf("- NRO returned 0x%016lX\n", size);
 				}
 				continue;
